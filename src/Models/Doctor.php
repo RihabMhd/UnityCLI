@@ -7,6 +7,7 @@ class Doctor extends Personne implements Displayable
 {
     private $specialization;
     private $departmentId;
+    private static $table = "doctors";
 
     public function __construct(
         $first_name,
@@ -27,22 +28,26 @@ class Doctor extends Personne implements Displayable
         $this->setDepartmentId($departmentId);
     }
 
-    public function getspecialization() {
+    public function getspecialization()
+    {
         return $this->specialization;
     }
 
-    public function setSpecialization($specialization) {
+    public function setSpecialization($specialization)
+    {
         if (!$this->validator->isNotEmpty($specialization)) {
             throw new Exception("Specialization is required");
         }
         $this->specialization = $specialization;
     }
 
-    public function getDepartmentId() {
+    public function getDepartmentId()
+    {
         return $this->departmentId;
     }
 
-    public function setDepartmentId($departmentId) {
+    public function setDepartmentId($departmentId)
+    {
         if (!$this->validator->isNotEmpty($departmentId)) {
             throw new Exception("department Id is required");
         }
@@ -50,15 +55,18 @@ class Doctor extends Personne implements Displayable
     }
 
 
-    public function getType(): string {
+    public function getType(): string
+    {
         return "Doctor";
     }
 
-    public function __toString(): string {
+    public function __toString(): string
+    {
         return "{$this->first_name} {$this->last_name} ({$this->getType()})";
     }
 
-    public function toArray(): array {
+    public function toArray(): array
+    {
         return [
             'first_name' => $this->first_name,
             'last_name' => $this->last_name,
@@ -70,7 +78,8 @@ class Doctor extends Personne implements Displayable
         ];
     }
 
-    public static function getDisplayHeaders(): array {
+    public static function getDisplayHeaders(): array
+    {
         return [
             'First Name',
             'Last Name',
@@ -79,5 +88,113 @@ class Doctor extends Personne implements Displayable
             'Specialization',
             'Department ID',
         ];
+    }
+
+    public static function create(PDO $db, array $data)
+    {
+        $sql = "INSERT INTO " . self::$table . " 
+                (first_name, last_name, specialisation, phone_number, email, department_id) 
+                VALUES (:first_name, :last_name, :specialisation, :phone_number, :email, :department_id)";
+
+        $stmt = $db->prepare($sql);
+        if ($stmt->execute([
+            ':first_name' => $data['first_name'],
+            ':last_name' => $data['last_name'],
+            ':specialisation' => $data['specialisation'],
+            ':phone_number' => $data['phone_number'],
+            ':email' => $data['email'],
+            ':department_id' => $data['department_id']
+        ])) {
+            return self::findById($db, $db->lastInsertId());
+        }
+
+        return null;
+    }
+    public static function findAll(PDO $db): array
+    {
+        $stmt = $db->query("SELECT * FROM " . self::$table);
+        $doctors = [];
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $doctors[] = new self(
+                $row['first_name'],
+                $row['last_name'],
+                $row['specialisation'],
+                $row['phone_number'],
+                $row['email'],
+                $row['department_id']
+            );
+        }
+        return $doctors;
+    }
+
+    public static function findById(PDO $db, int $id): ?Doctor
+    {
+        $stmt = $db->prepare("SELECT * FROM " . self::$table . " WHERE id = :id");
+        $stmt->execute([':id' => $id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($row) {
+            return new self(
+                $row['first_name'],
+                $row['last_name'],
+                $row['specialisation'],
+                $row['phone_number'],
+                $row['email'],
+                $row['department_id']
+            );
+        }
+        return null;
+    }
+
+    public static function update(PDO $db, int $id, array $data): bool
+    {
+        $sql = "UPDATE " . self::$table . " SET 
+                first_name = :first_name, 
+                last_name = :last_name, 
+                specialisation = :specialisation, 
+                phone_number = :phone_number, 
+                email = :email, 
+                department_id = :department_id";
+
+        $stmt = $db->prepare($sql);
+        return $stmt->execute([
+            ':first_name' => $data['first_name'],
+            ':last_name' => $data['last_name'],
+            ':specialisation' => $data['specialisation'],
+            ':phone_number' => $data['phone_number'],
+            ':email' => $data['email'],
+            ':department_id' => $data['department_id'],
+            ':id' => $id
+        ]);
+    }
+
+    public static function delete(PDO $db, int $id): bool
+    {
+        $stmt = $db->prepare("DELETE FROM " . self::$table . " WHERE id = :id");
+        return $stmt->execute([':id' => $id]);
+    }
+
+    public static function search(PDO $db, string $keyword): array
+    {
+        $stmt = $db->prepare("SELECT * FROM " . self::$table . " 
+                              WHERE first_name LIKE :kw 
+                              OR last_name LIKE :kw 
+                              OR specialisation LIKE :kw 
+                              OR phone_number LIKE :kw
+                              OR email LIKE :kw ");
+        $stmt->execute([':kw' => "%$keyword%"]);
+
+        $doctors = [];
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $doctors[] = new self(
+                $row['first_name'],
+                $row['last_name'],
+                $row['specialisation'],
+                $row['phone_number'],
+                $row['email'],
+                $row['department_id']
+            );
+        }
+        return $doctors;
     }
 }
